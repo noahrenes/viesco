@@ -3,15 +3,32 @@
 Patches for VSCodium for removing all telemetry and privacy-invasing functionality altogether.
 
 ## Quick start
-> TODO: The process is not described yet! Please wait for updates.
+```console
+$ python viesco.py
+usage: viesco [-h] [-o OUTPUT] [-d] install patch [patch ...]
+
+An utility for configuring VSCodium before first run.
+
+positional arguments:
+  install              installation/extraction path of VSCodium
+  patch                patch files to apply
+
+options:
+  -h, --help           show this help message and exit
+  -o, --output OUTPUT  write the automatic script to OUTPUT (.bat)
+  -d, --dry-run        perform a run without making any changes
+```
+- To apply patches: `python viesco.py <install> <patch...>`
+- To create an automatic **Batch script**: `python viesco.py -o script.bat <install> <patch...>`
+    - To avoid making changes to the current system use `-d` / `--dry-run`
+
 
 ## Contributing
 Everyone is welcome to make contributions to the repository. However, please make sure that you comply with the rules below.
 
 **Can be submitted**:
-- *Paths to files/folders* that do not affect VSCodium in any noticable way after the removal
-- *Replace rules* for VSCodium files for any supported platform
-- *User configuration* for removing/disabling any 3rd-party requests by default
+- *Paths to files/folders*, *replace rules* or *configuration* for VSCodium
+- *Anything* for removing/breaking/disabling connections to 3rd-party services
 
 **Disallowed pull/feature requests:**
 - Disabling open-vsx.org support
