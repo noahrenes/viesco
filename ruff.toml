@@ -1,0 +1,107 @@
+line-length = 100
+indent-width = 4
+preview = true
+show-fixes = true
+
+[lint]
+# Disabled:
+#   CPY, FLY, ERA, T20, TD, FIX, INP
+# Up to debate:
+#   RUF028  - Warn about directives for linters, unsupported by Ruff
+# Code style:
+#   RUF031 - Use list_instance[x, y] instead of list_instance[(x, y)]
+# Checked:
+#   PLR, G, RUF, TRY
+select = [
+    "AIR", "FAST", "YTT", "ANN", "ASYNC", "S", "BLE", "FBT", "B", "A", "COM", "C4",
+    "DTZ", "T10", "DJ", "EM", "EXE", "FA", "INT", "ISC", "ICN", "LOG", "G", "PIE",
+    "PYI", "PT", "Q", "RSE", "RET", "SLF", "SIM", "SLOT", "TID", "TC", "ARG", "PTH",
+    "I", "C90", "NPY", "PD", "N", "PERF", "E", "W", "DOC", "D", "F", "PGH", "PL",
+    "UP", "FURB", "RUF", "TRY"
+]
+# ANN002  - Type for *args
+# ANN003  - Type for **kwargs
+# ANN401  - Use of typing.Any as a function return type
+# PLR1722 - Use sys.exit() instead of exit(): Avoid unnecessary imports
+# PLR2004 - Magic values in comparisons
+# PLR6301 - Suggest possible use of @classmethod and @staticmethod
+# PTH123  - Replace open() with pathlib.Path.open(): Avoid unnecessary imports
+# RUF007  - Prefer itertools.pairwise() over zip(): Avoid unnecessary imports
+# RUF020  - Union with typing.Never: Show functions that do not return explicitly
+# W291    - Spaces at the end of a line
+# COM812  - This Ruff configuration treats missing trailing commas specially
+# TRY003  -
+# TRY301  - Abstract raise-catch situtations into functions: Avoid complexity
+#
+# SLF001  - Access to private members
+# D       - Documentation warnings
+ignore = [
+    "ANN002", "ANN003", "ANN401", "W291", "COM812",
+    "PLR1722", "PLR2004", "PLR6301", "PTH123", "RUF007", "RUF020", "TRY003", "TRY301",
+    # Toggle if needed
+    # "SLF001",
+    "D"
+]
+fixable = ["ALL"]
+
+[format]
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+indent-style = "space"
+line-ending = "lf"
+quote-style = "double"
+
+[lint.flake8-annotations]
+allow-star-arg-any = true # Ignored if ANN401 is disabled
+# ignore-fully-untyped = true
+mypy-init-return = true
+suppress-dummy-args = true # Ignored if ANN000 is disabled
+suppress-none-returning = true # Ignored if ANN200 is disabled
+
+# [lint.flake8-boolean-trap]
+# extend-allowed-calls = ["pydantic.Field", "django.db.models.Value"]
+
+[lint.flake8-builtins]
+ignorelist = ["id", "help"]
+
+[lint.flake8-implicit-str-concat]
+allow-multiline = true
+
+[lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
+multiline-quotes = "double"
+
+[lint.flake8-type-checking]
+quote-annotations = false
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase"]
+
+[lint.isort]
+required-imports = ["from __future__ import annotations"]
+split-on-trailing-comma = false
+
+[lint.pep8-naming]
+classmethod-decorators = [
+    # Pydantic
+    "pydantic.validator",
+    # SQLAlchemy
+    "declared_attr",
+    "expression",
+    "comparator",
+]
+ignore-names = []
+
+[lint.pycodestyle]
+ignore-overlong-task-comments = true
+
+[lint.pydoclint]
+ignore-one-line-docstrings = true
+
+[lint.pydocstyle]
+convention = "google"
+## Ignore *args and **kwargs missing docstrings
+# ignore-var-parameters = true
+
+[lint.pylint]
+# Note: The mcCabe complexity is still set to the default value.
+max-branches = 15
