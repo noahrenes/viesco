@@ -1,5 +1,6 @@
 {
     "typeCheckingMode": "standard",
-    "reportRedeclaration": "none",
-    "reportUnusedCallResult": "none"
+    "reportAttributeAccessIssue": "hint",
+    "reportUnusedCallResult": "none",
+    "reportRedeclaration": "none"
 }
