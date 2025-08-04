@@ -132,9 +132,9 @@ class Patcher:
         except KeyboardInterrupt:
             exit(1)
 
-    def check_patch(self, name: str, check: Callable[[Patcher], None]) -> bool:
+    def validate_patch(self, name: str, validator: Callable[[Patcher], None]) -> bool:
         self.current_patch = name
-        check(self)
+        validator(self)
         return not self._skip_patch
 
     def check_product_name(self, *supported: str):
@@ -299,11 +299,11 @@ if __name__ == "__main__":
             continue
 
         patch_module = import_module(f"patches.{patch_name}")
-        if patcher.check_patch(patch_name, patch_module.check):
+        if patcher.validate_patch(patch_name, patch_module.validate):
             patches.append((patch_name, patch_module.patch))
 
     try:
-        writer = ScriptWriter(patcher, patches, args.output)
+        ScriptWriter(patcher, patches, args.output)
     except ValueError as exc:
         patcher.print(exc, level="warning")
         exit(1)
