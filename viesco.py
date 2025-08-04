@@ -76,10 +76,10 @@ class ScriptWriter:
 
     def _batch_remove_file(self, path: Path):
         if self.patcher.install_path in path.parents:
-            path = path.relative_to(self.patcher.install_path)
+            path = Path("%VSC_PATH%") / path.relative_to(self.patcher.install_path)
 
         self.lines.append(f"echo :: Deleting {path}...")
-        self.lines.append(f"del /F /Q %VSC_PATH%\\{path}")
+        self.lines.append(f"del /F /Q {path}")
 
 
 class Patcher:
@@ -251,8 +251,11 @@ class Patcher:
         else:
             print(level, *args, file=fd, **kwargs)
 
-    def remove(self, path: Path | str, platform: str = ""):
-        path = Path(path)
+    def remove(self, path_str: Path | str, platform: str = ""):
+        path = Path(path_str)
+        if path.is_relative_to(self.install_path):
+            path_str = path.relative_to(self.install_path)
+
         is_targeting_host = not self.dry_run and (not platform or platform == self.host_platform)
         is_targeting_output = self.output.lines and (
             not platform or platform == self.output.platform
@@ -260,15 +263,15 @@ class Patcher:
 
         if is_targeting_host:
             path.unlink(missing_ok=True)
-            self.print(f"Removed {path}.", level="info")
+            self.print(f"Removed {path_str}.", level="info")
 
         if is_targeting_output:
             self.output.remove_file(path)
             if not is_targeting_host:
-                self.print(f"The script will remove {path}.", level="info")
+                self.print(f"The script will remove {path_str}.", level="info")
         elif not is_targeting_host:
             self.print(
-                f"Ignored {path}.",
+                f"Ignored {path_str}.",
                 f"(expected: {platform or '<any>'},",
                 f"host: {self.host_platform or '<unknown>'},",
                 f"target: {self.output.platform or '<none>'})",
