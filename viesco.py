@@ -5,17 +5,16 @@ from argparse import ArgumentParser
 from importlib import import_module
 from math import ceil
 from pathlib import Path
-from sys import stderr, stdout
-from typing import TYPE_CHECKING, Any, Callable
-
-if TYPE_CHECKING:
-    from typing import Any
+from sys import platform, stderr, stdout
+from typing import Any, Callable
 
 
 class ScriptWriter:
-    def __init__(self, patches: list[tuple[str, Any]], install_path: str, output_path: str | None):
-        self.install_path = install_path
+    def __init__(self, patcher: Patcher, patches: list[tuple[str, Any]], output_path: str | None):
+        self.patcher = patcher
         self.lines = []
+
+        patcher.output = self
 
         if output_path:
             self.output_path = Path(output_path)
@@ -35,7 +34,7 @@ class ScriptWriter:
             self.remove_file = self._dummy
 
         self._prepare(patches)
-        self.set_variable("VSC_PATH", install_path)
+        self.set_variable("VSC_PATH", patcher.install_path)
 
     def write(self):
         if self.lines:
@@ -45,34 +44,38 @@ class ScriptWriter:
         pass
 
     def _batch_prepare(self, patches: list[tuple[str, Any]]):
-        self.lines.extend((
-            "@echo off",
-            f"rem This script was created AUTOMATICALLY using Viesco v{Patcher.VERSION}.",
-            "rem",
-            "rem GitHub: https://github.com/noahrenes/viesco",
-            "rem Codeberg: https://codeberg.org/renesnoah/viesco",
-            "rem",
-            "rem Viesco is free software; you can redistribute it and/or modify",
-            "rem it under the terms of the GNU General Public License version 2",
-            "rem as published by the Free Software Foundation.",
-            "rem",
-            "rem Viesco and this script is distributed in the hope that it will",
-            "rem be useful, but WITHOUT ANY WARRANTY; without even the implied",
-            "rem warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR ",
-            "rem PURPOSE.",
-            "rem",
-            "rem Applied patches:",
-            f"rem   {','.join(name for name, _ in patches)}",
-        ))
+        name = self.patcher.installed_name
+        version = self.patcher.installed_version
 
-    def _batch_comment(self, message: str):
-        self.lines.append(f"rem {message}")
+        self.lines.append("@echo off")
+        self._batch_comment(
+            f"This script was created AUTOMATICALLY using Viesco v{Patcher.VERSION}",
+            f"for {name} v{version} on {platform}.",
+            "",
+            "Applied patches:",
+            f"  {','.join(name for name, _ in patches)}",
+            "",
+            "GitHub: https://github.com/noahrenes/viesco",
+            "Codeberg: https://codeberg.org/renesnoah/viesco",
+            "",
+            "Viesco is free software; you can redistribute it and/or modify",
+            "it under the terms of the GNU General Public License version 2",
+            "as published by the Free Software Foundation.",
+            "",
+            "Viesco and this script is distributed in the hope that it will",
+            "be useful, but WITHOUT ANY WARRANTY; without even the implied",
+            "warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR ",
+            "PURPOSE.",
+        )
 
-    def _batch_set_variable(self, name: str, value: str):
+    def _batch_comment(self, *lines: str):
+        self.lines.extend(f"rem {line}" for line in lines)
+
+    def _batch_set_variable(self, name: str, value: Any):
         self.lines.append(f'set "{name}={value}"')
 
     def _batch_remove_file(self, path: Path):
-        path = path.relative_to(self.install_path)
+        path = path.relative_to(self.patcher.install_path)
         self.lines.append(f"echo :: Deleting {path}...")
         self.lines.append(f"del /F /Q %VSC_PATH%\\{path}")
 
@@ -80,22 +83,39 @@ class ScriptWriter:
 class Patcher:
     VERSION = "1.0.0"
 
-    EXIT_USER = 1
-    EXIT_FATAL = 2
-
-    def __init__(self, install_path: Path, *, dry_run: bool = False):
-        self.install_path = install_path
-        self.output: ScriptWriter = None  # pyright: ignore[reportAttributeAccessIssue]
+    def __init__(self, *, dry_run: bool = False):
         self.dry_run = dry_run
+        self.output: ScriptWriter = None  # pyright: ignore[reportAttributeAccessIssue]
+        self.install_path: Path = None  # pyright: ignore[reportAttributeAccessIssue]
 
         self._skip_patch = False
         self.current_patch = ""
 
-        with (install_path / "resources/app/product.json").open() as f:
-            self.product_info = json.load(f)
+        self.product_info: dict = None  # pyright: ignore[reportAttributeAccessIssue]
+        self.package_info: dict = None  # pyright: ignore[reportAttributeAccessIssue]
 
-        with (install_path / "resources/app/package.json").open() as f:
+    @property
+    def installed_version(self) -> str:
+        return self.package_info["version"]
+
+    @property
+    def installed_name(self) -> str:
+        return self.product_info["nameShort"]
+
+    def load_install_path(self, install_path: Path) -> bool:
+        product_path = install_path / "resources/app/product.json"
+        package_path = install_path / "resources/app/package.json"
+
+        if not product_path.is_file() or not package_path.is_file():
+            return False
+
+        with product_path.open() as f:
+            self.product_info = json.load(f)
+        with package_path.open() as f:
             self.package_info = json.load(f)
+
+        self.install_path = install_path
+        return True
 
     def _find(self, array: tuple, item: Any) -> int:
         try:
@@ -110,7 +130,7 @@ class Patcher:
                 input(f"[{self.current_patch}] Skip the patch? [Y/n]: ").lower() != "n"
             )
         except KeyboardInterrupt:
-            exit(Patcher.EXIT_USER)
+            exit(1)
 
     def check_patch(self, name: str, check: Callable[[Patcher], None]) -> bool:
         self.current_patch = name
@@ -118,21 +138,19 @@ class Patcher:
         return not self._skip_patch
 
     def check_product_name(self, *supported: str):
-        if self.product_info["nameShort"] not in supported:
-            self._ask_to_skip_patch(
-                f"'{self.product_info['nameShort']}' is not supported by the patch."
-            )
+        if self.installed_name not in supported:
+            self._ask_to_skip_patch(f"'{self.installed_name}' is not supported by the patch.")
 
     def check_version(self, minimal_str: str):
         minimal = tuple(map(int, minimal_str.split(".")))
-        current: tuple[int, ...] = tuple(map(int, self.package_info["version"].split(".")))
+        current: tuple[int, ...] = tuple(map(int, self.installed_version.split(".")))
         if not (
             current[0] >= minimal[0]
             and (len(minimal) < 2 or current[1] >= minimal[1])
             and (len(minimal) < 3 or current[2] >= minimal[2])
         ):
             self._ask_to_skip_patch(
-                f"{self.product_info['nameShort']} v{self.package_info['version']}",
+                f"{self.installed_name} v{self.installed_version}",
                 f"is not supported by the patch (minimal: v{minimal_str}).",
             )
 
@@ -148,7 +166,7 @@ class Patcher:
             try:
                 selected = input(prompt)
             except KeyboardInterrupt:
-                exit(Patcher.EXIT_USER)
+                exit(1)
 
             invalid = []
             selected = selected.split(",")
@@ -210,8 +228,10 @@ class Patcher:
         self.print(f"Starting '{name}'...")
         self.current_patch = name
 
-        self.output.lines.append("")
-        self.output.comment(name)
+        # Maybe it should be available as a ScriptWriter method.
+        # Though it is needed only here, so hardcoding it is fine for now.
+        sep = "-" * 70
+        self.output.comment(sep, name, sep)
 
     def print(self, *args, level: str = "", **kwargs):
         fd = stdout
@@ -261,14 +281,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    patcher = Patcher(install_path=Path(args.install), dry_run=args.dry_run)
-    if not patcher.install_path.is_dir():
-        patcher.print(f"Unable to access the folder: '{args.install}'.", level="warning")
-        exit(Patcher.EXIT_FATAL)
-
+    patcher = Patcher(dry_run=args.dry_run)
     patcher.print(f"Received args: {args}", level="debug")
+
     if patcher.dry_run:
         patcher.print("This is a dry run. No changes will be made.", level="warning")
+    if not patcher.load_install_path(Path(args.install)):
+        patcher.print(f"'{args.install}' is not a valid path to VSCodium.", level="warning")
+        exit(1)
 
     patches: list[tuple[str, Callable[[Patcher], None]]] = []
     for patch_name in args.patch:
@@ -283,14 +303,14 @@ if __name__ == "__main__":
             patches.append((patch_name, patch_module.patch))
 
     try:
-        writer = ScriptWriter(patches, args.install, args.output)
-        patcher.output = writer
+        writer = ScriptWriter(patcher, patches, args.output)
     except ValueError as exc:
         patcher.print(exc, level="warning")
-        exit(Patcher.EXIT_USER)
+        exit(1)
 
     for name, func in patches:
         patcher.print_patch_name(name)
         func(patcher)
 
-    patcher.output.write()
+    if patches:
+        patcher.output.write()
